@@ -1,5 +1,10 @@
 #include "utility.h"
+#include <pcl/filters/extract_indices.h>
 #include "lio_sam/cloud_info.h"
+#include <pcl_conversions/pcl_conversions.h>
+#include "/home/ubuntu/catkin_ws/src/velodyne/velodyne_pcl/include/velodyne_pcl/point_types.h"
+#include <pcl/PCLPointCloud2.h>
+#include <pcl/conversions.h>
 
 struct VelodynePointXYZIRT
 {
@@ -179,7 +184,31 @@ public:
 
     void cloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     {
-        if (!cachePointCloud(laserCloudMsg))
+	    sensor_msgs::PointCloud2 cloud_in = *laserCloudMsg;
+
+	    pcl::PCLPointCloud2 pcl_pointcloud2;
+	    pcl_conversions::toPCL(*laserCloudMsg, pcl_pointcloud2);
+	    pcl::PointCloud<velodyne_pcl::PointXYZIRT>::Ptr pcl_cloud_ptr(new pcl::PointCloud<velodyne_pcl::PointXYZIRT>);
+	    pcl::fromPCLPointCloud2(pcl_pointcloud2, *pcl_cloud_ptr);
+	
+	pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+	pcl::ExtractIndices<velodyne_pcl::PointXYZIRT> extract;
+	for ( int i =0 ; i < (*pcl_cloud_ptr).size(); i++)
+	{
+	    auto x_value = pcl_cloud_ptr->points[i].x;
+	    if(abs(x_value) > 1)
+	    {
+		    inliers->indices.push_back(i);
+	    }
+	}
+	extract.setInputCloud(pcl_cloud_ptr);
+	extract.setIndices(inliers);
+	extract.setNegative(false);
+	extract.filter(*pcl_cloud_ptr);
+	pcl::toROSMsg(*pcl_cloud_ptr, cloud_in);
+
+
+        if (!cachePointCloud(cloud_in))
             return;
 
         if (!deskewInfo())
@@ -194,10 +223,10 @@ public:
         resetParameters();
     }
 
-    bool cachePointCloud(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
+    bool cachePointCloud(const sensor_msgs::PointCloud2& laserCloudMsg)
     {
         // cache point cloud
-        cloudQueue.push_back(*laserCloudMsg);
+        cloudQueue.push_back(laserCloudMsg);
         if (cloudQueue.size() <= 2)
             return false;
 
