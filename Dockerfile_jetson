@@ -1,0 +1,41 @@
+FROM dustynv/ros:noetic-desktop-l4t-r35.3.1
+
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+
+RUN apt-get update \
+    && apt-get install -y curl \
+    && curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - \
+    && apt-get update \
+    && apt-get install -y ros-noetic-navigation \
+    && apt-get install -y ros-noetic-robot-localization \
+    && apt-get install -y ros-noetic-robot-state-publisher \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt update && apt install ros-noetic-pcl-ros -y && apt install libnav-msgs-dev -y && apt install ros-noetic-nav-msgs -y && \
+  apt install ros-noetic-eigen-conversions -y && apt install ros-visualization-msgs -y && apt install ros-noetic-common-msgs -y && \
+  apt install rviz -y
+
+RUN apt-get purge -y '*opencv*'
+RUN apt-get install ros-noetic-cv-bridge -y
+
+RUN apt-get update \
+    && apt install -y software-properties-common \
+    && add-apt-repository -y ppa:borglab/gtsam-release-4.0 \
+    && apt-get update \
+    && apt install -y libgtsam-dev libgtsam-unstable-dev
+
+
+
+SHELL ["/bin/bash", "-c"]
+
+RUN mkdir /workspace/src
+RUN cd /workspace/src \
+    && git clone https://github.com/JerichoGroup/LIO-SAM.git -b noetic \
+    && cd .. \
+    && source /opt/ros/noetic/setup.bash \
+    && catkin_make
+
+RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc \
+    && echo "source /workspace/devel/setup.bash" >> /root/.bashrc
+
+WORKDIR /workspace/src
